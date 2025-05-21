@@ -41,9 +41,10 @@ export default function NotFoundScreen() {
         >
           <Text
             style={styles.continueButtonText}
-            onPress={() =>
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-            }
+            onPress={() => {
+              router.replace("/");
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
           >
             GO BACK HOME
           </Text>

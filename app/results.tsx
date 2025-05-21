@@ -39,9 +39,10 @@ function ErrorScreen({ code, message }: { code: number; message: string }) {
         >
           <Text
             style={styles.continueButtonText}
-            onPress={() =>
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-            }
+            onPress={() => {
+              router.replace("/");
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
           >
             GO BACK HOME
           </Text>
@@ -119,7 +120,7 @@ Respond ONLY with a single JSON array of recipe objects. Do NOT include any othe
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "google/gemini-2.0-flash-exp:free",
+              model: "meta-llama/llama-4-maverick:free",
               messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: userPrompt },
