@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "Recignize",
+    "slug": "recignize",
+    "version": "1.0.0",
+    "description": "Sustainability + AI = Tasty food :P Recignize allows you to use your existing utensils, veggies, fruits, etc., to find the best recipes using the power of LLMs and Vision AI models.",
+    "privacy": "public",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "recignizeapp",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "splash": {
+        "backgroundColor": "##ffdd00"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "##ffdd00"
+      },
+      "edgeToEdgeEnabled": true,
+      "splash": {
+        "backgroundColor": "##ffdd00"
+      },
+      "permissions": ["CAMERA"]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-screen.webp",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#000"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9574ac96-ff47-4326-8e0c-028ffe7d9a10"
+      }
+    },
+    "owner": "baddhri"
+  }
+}
