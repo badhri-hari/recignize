@@ -9,14 +9,9 @@
     "icon": "./assets/images/icon.png",
     "scheme": "recignizeapp",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true,
-      "splash": {
-        "backgroundColor": "#ffdd00"
-      }
-    },
+    "versionCode": 1,
     "android": {
+      "package": "com.recignize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffdd00"
@@ -26,6 +21,12 @@
         "backgroundColor": "#ffdd00"
       },
       "permissions": ["CAMERA"]
+    },
+    "ios": {
+      "supportsTablet": true,
+      "splash": {
+        "backgroundColor": "#ffdd00"
+      }
     },
     "web": {
       "bundler": "metro",
@@ -46,6 +47,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9574ac96-ff47-4326-8e0c-028ffe7d9a10",
+      "fallbackToCacheTimeout": 0,
+      "checkAutomatically": "ON_LOAD"
     },
     "extra": {
       "router": {},
