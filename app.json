@@ -20,7 +20,11 @@
       "splash": {
         "backgroundColor": "#ffdd00"
       },
-      "permissions": ["CAMERA"]
+      "permissions": ["CAMERA"],
+      "androidStatusBar": {
+        "backgroundColor": "#ffdd00",
+        "barStyle": "dark-content"
+      }
     },
     "ios": {
       "supportsTablet": true,
