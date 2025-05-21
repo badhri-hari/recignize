@@ -3,7 +3,7 @@
     "name": "Recignize",
     "slug": "recignize",
     "version": "1.0.0",
-    "description": "Sustainability + AI = Tasty food :P Recignize allows you to use your existing utensils, veggies, fruits, etc., to find the best recipes using the power of LLMs and Vision AI models.",
+    "description": "Sustainability + AI = Tasty food :P Recignize allows you to use your existing utensils, veggies, fruits, etc., to find the best recipes using the power of multimodal LLMs.",
     "privacy": "public",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
