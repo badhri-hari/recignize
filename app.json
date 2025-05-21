@@ -10,6 +10,10 @@
     "scheme": "recignizeapp",
     "userInterfaceStyle": "dark",
     "versionCode": 1,
+    "androidStatusBar": {
+      "backgroundColor": "#ffdd00",
+      "barStyle": "dark-content"
+    },
     "android": {
       "package": "com.recignize",
       "adaptiveIcon": {
@@ -20,11 +24,7 @@
       "splash": {
         "backgroundColor": "#ffdd00"
       },
-      "permissions": ["CAMERA"],
-      "androidStatusBar": {
-        "backgroundColor": "#ffdd00",
-        "barStyle": "dark-content"
-      }
+      "permissions": ["CAMERA"]
     },
     "ios": {
       "supportsTablet": true,

@@ -16,8 +16,6 @@ import {
 
 import LoadingBar from "../components/LoadingBar";
 
-const backendUrl = Constants.expoConfig?.extra?.REACT_NATIVE_BACKEND_URL;
-
 type Recipe = {
   title: string;
   ingredients: string[];
@@ -65,6 +63,7 @@ export default function ResultsScreen() {
 
   const params = useLocalSearchParams();
   const itemsParam = params.items as string | undefined;
+  const GOOGLE_API_KEY = Constants.expoConfig?.extra?.GOOGLE_API_KEY;
 
   const pulseAnim = useRef(new Animated.Value(0.3)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -92,47 +91,84 @@ export default function ResultsScreen() {
     (async () => {
       try {
         if (!itemsParam) throw new Error("No items provided");
+        const parsedItems: string[] = JSON.parse(
+          decodeURIComponent(itemsParam)
+        );
 
-        const parsed = JSON.parse(decodeURIComponent(itemsParam));
-        const resp = await fetch(backendUrl!, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ items: parsed }),
-        });
+        const systemPrompt = `
+You are a JSON recipe generator. Based on the user's items, return as many unique recipes as possible using different combinations of the items. Each recipe must be a valid JSON object with these exact keys:
+- "title": string (a catchy name)
+- "ingredients": string[] (only the ingredients used for this recipe)
+- "instructions": string (multi-step instructions, with each step numbered like '1. Do this.', '2. Then this.', etc.)
 
-        if (!resp.ok) {
-          const errorData = await resp.json();
-          const status = resp.status;
-          const message = errorData.error || `Server responded with ${status}`;
+Respond ONLY with a single JSON array of recipe objects. Do NOT include any other text. Each recipe can use a subset of the items—do NOT try to use all items in every recipe.
+`.trim();
+
+        const userPrompt = `Here is a list of available items:\n${JSON.stringify(
+          parsedItems,
+          null,
+          2
+        )}\n\nPlease generate as many valid and creative recipe combinations as possible. Each recipe should use a subset of the ingredients.`;
+
+        const aiResponse = await fetch(
+          "https://generativelanguage.googleapis.com/v1beta2/models/google/gemini-2.0-flash:generateMessage",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${GOOGLE_API_KEY}`,
+            },
+            body: JSON.stringify({
+              prompt: {
+                messages: [
+                  { author: "system", content: systemPrompt },
+                  { author: "user", content: userPrompt },
+                ],
+              },
+              temperature: 0.7,
+            }),
+          }
+        );
+
+        if (!aiResponse.ok) {
+          const errData = await aiResponse.json();
+          const status = aiResponse.status;
+          const message =
+            errData.error?.message ||
+            errData.error ||
+            `Gemini API error (HTTP ${status})`;
           throw { status, message };
         }
 
-        const result = await resp.json();
-        if (Array.isArray(result.recipes)) {
-          setRecipes(result.recipes);
-          setError(null);
-        } else {
-          throw {
-            status: 500,
-            message: "Invalid AI response format.",
-          };
+        const aiJson = await aiResponse.json();
+        const raw = aiJson.candidates?.[0]?.message?.content;
+        if (!raw) throw new Error("Empty response from Gemini");
+
+        const cleaned = raw
+          .replace(/^```json\s*/i, "")
+          .replace(/```$/, "")
+          .trim();
+
+        let recipes: Recipe[];
+        try {
+          recipes = JSON.parse(cleaned);
+        } catch (parseErr) {
+          console.error("Failed to JSON-parse recipes:", cleaned);
+          throw new Error("Invalid JSON from Gemini");
         }
+
+        setRecipes(recipes);
+        setError(null);
       } catch (err: any) {
         console.error(err);
         setError({
           code: err.status || 500,
-          message: err.message || "Unexpected error occurred",
+          message: err.message || "An unexpected error occurred",
         });
       } finally {
         setLoading(false);
       }
     })();
-
-    const barTimer = setTimeout(() => {
-      setShowBar(false);
-    }, 8000);
-
-    return () => clearTimeout(barTimer);
   }, [itemsParam]);
 
   useEffect(() => {
