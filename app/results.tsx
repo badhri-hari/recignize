@@ -16,7 +16,7 @@ import {
 
 import LoadingBar from "../components/LoadingBar";
 
-const { REACT_NATIVE_BACKEND_URL } = Constants.expoConfig?.extra ?? {};
+const backendUrl = Constants.expoConfig?.extra?.REACT_NATIVE_BACKEND_URL;
 
 type Recipe = {
   title: string;
@@ -94,7 +94,7 @@ export default function ResultsScreen() {
         if (!itemsParam) throw new Error("No items provided");
 
         const parsed = JSON.parse(decodeURIComponent(itemsParam));
-        const resp = await fetch(REACT_NATIVE_BACKEND_URL!, {
+        const resp = await fetch(backendUrl!, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ items: parsed }),
