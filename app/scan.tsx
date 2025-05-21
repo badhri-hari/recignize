@@ -5,8 +5,10 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -25,6 +27,7 @@ import {
 
 import InputModal from "../components/InputModal";
 
+import Constants from "expo-constants";
 import * as FileSystem from "expo-file-system";
 import {
   loadItemsMetadata,
@@ -46,8 +49,10 @@ export default function ScanScreen() {
   const [itemDescription, setItemDescription] = useState("");
   const [confirmRemoveId, setConfirmRemoveId] = useState(null);
   const [navigated, setNavigated] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const API_KEY = Constants.expoConfig?.extra?.OPENROUTER_API_KEY;
+  const timerRef = useRef(null);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -86,6 +91,101 @@ export default function ScanScreen() {
     init();
   }, []);
 
+  const imageToBase64 = async (uri) => {
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return base64;
+    } catch (error) {
+      console.error("Error converting image to base64:", error);
+      return null;
+    }
+  };
+
+  const processImageWithAI = async (imageUri) => {
+    try {
+      setIsProcessing(true);
+
+      const base64Image = await imageToBase64(imageUri);
+      if (!base64Image) {
+        throw new Error("Failed to convert image to base64");
+      }
+
+      const systemPrompt = `
+You are an AI food item identifier. Your job is to identify food items in images and return JSON with:
+- "name": The food item's name (simple, 1-3 words)
+- "description": A brief description (optional, one short sentence)
+
+Return ONLY valid JSON with these two fields. No other text.`;
+
+      const response = await fetch(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "mistralai/mistral-small-3.1-24b-instruct:free",
+            messages: [
+              { role: "system", content: systemPrompt },
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "What food item is in this image? Respond with JSON only.",
+                  },
+                  {
+                    type: "image_url",
+                    image_url: { url: `data:image/jpeg;base64,${base64Image}` },
+                  },
+                ],
+              },
+            ],
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const aiContent = data.choices?.[0]?.message?.content;
+
+      try {
+        const cleanedContent = aiContent
+          .replace(/^```json\s*/i, "")
+          .replace(/```$/, "")
+          .trim();
+
+        const result = JSON.parse(cleanedContent);
+        return {
+          name: result.name || "",
+          description: result.description || "",
+        };
+      } catch (jsonError) {
+        console.warn("Error parsing AI response:", jsonError);
+        // Try to extract name using regex as fallback
+        const nameMatch = aiContent.match(/"name"\s*:\s*"([^"]+)"/);
+        const descMatch = aiContent.match(/"description"\s*:\s*"([^"]+)"/);
+
+        return {
+          name: nameMatch ? nameMatch[1] : "",
+          description: descMatch ? descMatch[1] : "",
+        };
+      }
+    } catch (error) {
+      console.error("AI processing error:", error);
+      return { name: "", description: "" };
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
@@ -101,7 +201,17 @@ export default function ScanScreen() {
     if (!result.canceled) {
       const savedUri = await savePhotoToDataFolder(result.assets[0].uri);
       setCurrentImage(savedUri);
-      setModalVisible(true);
+
+      try {
+        const aiResult = await processImageWithAI(savedUri);
+
+        setItemName(aiResult.name);
+        setItemDescription(aiResult.description);
+      } catch (error) {
+        console.warn("Error processing with AI:", error);
+      } finally {
+        setModalVisible(true);
+      }
     }
   };
 
@@ -236,6 +346,15 @@ export default function ScanScreen() {
         </ActionsContainer>
       </ContentCard>
 
+      <Modal transparent={true} visible={isProcessing} animationType="fade">
+        <View style={styles.loaderContainer}>
+          <View style={styles.loaderContent}>
+            <ActivityIndicator size="large" color="rgba(255, 221, 0, 1)" />
+            <Text style={styles.loaderText}>Analyzing image...</Text>
+          </View>
+        </View>
+      </Modal>
+
       <InputModal
         visible={modalVisible}
         title="Item Details"
@@ -343,5 +462,25 @@ const styles = StyleSheet.create({
     marginTop: 4.5,
     fontWeight: "500",
     color: "rgba(255, 255, 255, 0.5)",
+  },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+  },
+  loaderContent: {
+    backgroundColor: "#181818",
+    borderRadius: 12,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 0.5,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  loaderText: {
+    color: "#fff",
+    marginTop: 15,
+    fontSize: 16,
+    fontWeight: "500",
   },
 });

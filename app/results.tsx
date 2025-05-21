@@ -60,13 +60,12 @@ export default function ResultsScreen() {
   );
 
   const router = useRouter();
-
   const params = useLocalSearchParams();
   const itemsParam = params.items as string | undefined;
-  const GOOGLE_API_KEY = Constants.expoConfig?.extra?.GOOGLE_API_KEY;
 
   const pulseAnim = useRef(new Animated.Value(0.3)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const API_KEY = Constants.expoConfig?.extra?.OPENROUTER_API_KEY;
 
   useEffect(() => {
     Animated.loop(
@@ -89,6 +88,7 @@ export default function ResultsScreen() {
 
   useEffect(() => {
     (async () => {
+      let raw = "";
       try {
         if (!itemsParam) throw new Error("No items provided");
         const parsedItems: string[] = JSON.parse(
@@ -110,63 +110,75 @@ Respond ONLY with a single JSON array of recipe objects. Do NOT include any othe
           2
         )}\n\nPlease generate as many valid and creative recipe combinations as possible. Each recipe should use a subset of the ingredients.`;
 
-        const aiResponse = await fetch(
-          "https://generativelanguage.googleapis.com/v1beta2/models/google/gemini-2.0-flash:generateMessage",
+        const aiResp = await fetch(
+          "https://openrouter.ai/api/v1/chat/completions",
           {
             method: "POST",
             headers: {
+              Authorization: `Bearer ${API_KEY}`,
               "Content-Type": "application/json",
-              Authorization: `Bearer ${GOOGLE_API_KEY}`,
             },
             body: JSON.stringify({
-              prompt: {
-                messages: [
-                  { author: "system", content: systemPrompt },
-                  { author: "user", content: userPrompt },
-                ],
-              },
-              temperature: 0.7,
+              model: "google/gemini-2.0-flash-exp:free",
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt },
+              ],
             }),
           }
         );
 
-        if (!aiResponse.ok) {
-          const errData = await aiResponse.json();
-          const status = aiResponse.status;
-          const message =
-            errData.error?.message ||
-            errData.error ||
-            `Gemini API error (HTTP ${status})`;
-          throw { status, message };
+        if (!aiResp.ok) {
+          const err = await aiResp.json();
+          throw {
+            status: aiResp.status,
+            message: err.error?.message || `HTTP ${aiResp.status}`,
+          };
         }
 
-        const aiJson = await aiResponse.json();
-        const raw = aiJson.candidates?.[0]?.message?.content;
-        if (!raw) throw new Error("Empty response from Gemini");
+        const payload = await aiResp.json();
+        raw = payload.choices?.[0]?.message?.content || "";
+
+        if (!raw.trim()) {
+          throw new Error("Received empty response from OpenRouter");
+        }
 
         const cleaned = raw
           .replace(/^```json\s*/i, "")
           .replace(/```$/, "")
           .trim();
 
-        let recipes: Recipe[];
-        try {
-          recipes = JSON.parse(cleaned);
-        } catch (parseErr) {
-          console.error("Failed to JSON-parse recipes:", cleaned);
-          throw new Error("Invalid JSON from Gemini");
-        }
+        let parsed: Recipe[] = JSON.parse(cleaned);
 
-        setRecipes(recipes);
+        setRecipes(parsed);
         setError(null);
-      } catch (err: any) {
-        console.error(err);
-        setError({
-          code: err.status || 500,
-          message: err.message || "An unexpected error occurred",
-        });
+      } catch (e: any) {
+        console.warn("AI fetch or parse error:", e);
+
+        const debugInstructions =
+          raw ||
+          (e.message && e.message.includes("AI output was:")
+            ? e.message.split("AI output was:\n")[1]
+            : undefined);
+
+        if (debugInstructions) {
+          setRecipes([
+            {
+              title: "🔍 Raw AI Output (for debugging)",
+              ingredients: [],
+              instructions: debugInstructions.trim(),
+            },
+          ]);
+          setError(null);
+        } else {
+          setError({
+            code: e.status || 500,
+            message: e.message || "Unexpected error occurred",
+          });
+        }
       } finally {
         setLoading(false);
+        setShowBar(false);
       }
     })();
   }, [itemsParam]);
@@ -182,47 +194,72 @@ Respond ONLY with a single JSON array of recipe objects. Do NOT include any othe
     }
   }, [showBar, fadeAnim]);
 
-  if (showBar) {
-    return <LoadingBar />;
-  }
+  // Helper function to parse and display instructions line by line
+  const renderInstructions = (instructions: string) => {
+    // Check if we're dealing with debug output
+    if (instructions.startsWith("{") || instructions.startsWith("[")) {
+      return <Text style={styles.instructions}>{instructions}</Text>;
+    }
 
-  if (loading) {
+    // Split instructions by numbered pattern (1. 2. 3. etc.)
+    const steps = instructions
+      .split(/(\d+\.\s)/)
+      .filter(Boolean) // Remove empty strings
+      .reduce((acc: string[], current, index, array) => {
+        // If this is a number like "1. ", combine with the next item
+        if (/^\d+\.\s$/.test(current) && index < array.length - 1) {
+          acc.push(current + array[index + 1]);
+        } else if (!/^\d+\.\s$/.test(array[index - 1])) {
+          // Only add non-number items if they're not already combined
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+
+    return steps.map((step, idx) => {
+      // Skip lines that don't start with a number if not the first item
+      if (idx > 0 && !/^\d+\./.test(step)) return null;
+      return (
+        <Text key={idx} style={styles.instruction}>
+          {step.trim()}
+        </Text>
+      );
+    });
+  };
+
+  if (showBar) return <LoadingBar />;
+
+  if (loading)
     return (
       <ScreenLayout
         continueButtonColor="rgba(255, 221, 0, 1)"
-        continueAllowed={true}
-        onContinue={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }}
+        continueAllowed
+        onContinue={() =>
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+        }
       >
         <ContentCard>
           <Text style={styles.screenTitle}>RESULTS</Text>
           <ScrollView style={styles.itemsContainer}>
-            {[...Array(1)].map((_, i) => (
-              <Animated.View
-                key={i}
-                style={[styles.skeletonCard, { opacity: pulseAnim }]}
-              >
-                <View style={styles.skelImage} />
-                <View style={styles.skelLineShort} />
-                <View style={styles.skelLineLong} />
-                <View style={styles.skelLineMedium} />
-              </Animated.View>
-            ))}
+            <Animated.View
+              style={[styles.skeletonCard, { opacity: pulseAnim }]}
+            >
+              <View style={styles.skelImage} />
+              <View style={styles.skelLineShort} />
+              <View style={styles.skelLineLong} />
+              <View style={styles.skelLineMedium} />
+            </Animated.View>
           </ScrollView>
         </ContentCard>
       </ScreenLayout>
     );
-  }
 
-  if (error) {
-    return <ErrorScreen code={error.code} message={error.message} />;
-  }
+  if (error) return <ErrorScreen code={error.code} message={error.message} />;
 
   return (
     <ScreenLayout
       continueButtonColor="rgba(255, 221, 0, 1)"
-      continueAllowed={true}
+      continueAllowed
       onContinue={() => {
         router.replace("/");
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -231,26 +268,28 @@ Respond ONLY with a single JSON array of recipe objects. Do NOT include any othe
       <ContentCard>
         <Text style={styles.screenTitle}>RESULTS</Text>
         <ScrollView style={styles.itemsContainer}>
-          {recipes.map((r, idx) => (
-            <View key={idx} style={styles.recipeCard}>
+          {recipes.map((r, i) => (
+            <Animated.View
+              key={i}
+              style={[styles.recipeCard, { opacity: fadeAnim }]}
+            >
               <View style={styles.resultImagePlaceholder} />
               <Text style={styles.recipeTitle}>{r.title}</Text>
-              <Text style={styles.sectionHeader}>Ingredients:</Text>
-              {r.ingredients.map((ing, i) => (
-                <Text key={i} style={styles.ingredient}>
-                  • {ing}
-                </Text>
-              ))}
+              {r.ingredients.length > 0 && (
+                <>
+                  <Text style={styles.sectionHeader}>Ingredients:</Text>
+                  {r.ingredients.map((ing, idx) => (
+                    <Text key={idx} style={styles.ingredient}>
+                      • {ing}
+                    </Text>
+                  ))}
+                </>
+              )}
               <Text style={styles.sectionHeader}>Instructions:</Text>
-              {r.instructions
-                .split(/\d+\.\s+/)
-                .filter((step) => step.trim().length > 0)
-                .map((step, i) => (
-                  <Text key={i} style={styles.instructions}>
-                    {`${i + 1}. ${step.trim()}`}
-                  </Text>
-                ))}
-            </View>
+              <View style={styles.instructionsContainer}>
+                {renderInstructions(r.instructions)}
+              </View>
+            </Animated.View>
           ))}
         </ScrollView>
       </ContentCard>
@@ -265,16 +304,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  errorContainer: {
-    padding: 32,
-    alignItems: "center",
-    width: "100%",
-  },
+  errorContainer: { padding: 32, alignItems: "center", width: "100%" },
   skeletonCard: {
     backgroundColor: "#222",
     borderRadius: 12,
     padding: 16,
-    marginBottom: 20,
+    margin: 20,
   },
   skelImage: {
     height: 120,
@@ -302,49 +337,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#333",
     borderRadius: 4,
   },
-  title: {
-    fontFamily: "ConfigSemiBold",
-    fontSize: 60,
-    color: "#fff",
-    marginBottom: 8,
-    letterSpacing: 5,
-  },
-  subtitle: {
-    fontFamily: "ConfigSemiBold",
-    fontSize: 24,
-    color: "rgba(255, 255, 255, 0.7)",
-    marginBottom: 8,
-    letterSpacing: 1,
-    textAlign: "center",
-  },
-  continueButton: {
-    backgroundColor: "#181818",
-    borderRadius: 30,
-    paddingVertical: 20,
-    paddingHorizontal: 32,
-    alignItems: "center",
-    width: "100%",
-    borderWidth: 0.5,
-    borderColor: "rgba(255, 255, 255, 0.3)",
-    marginTop: 20,
-  },
-  continueButtonText: {
-    fontFamily: "ConfigSemiBold",
-    color: "#fff",
-    fontSize: 25,
-  },
-  itemsContainer: {
-    flex: 1,
-    height: 0,
-    marginBottom: 12,
-  },
   screenTitle: {
     fontFamily: "ConfigSemiBold",
     fontSize: 19,
-    color: "rgba(255, 255, 255, 0.4)",
+    color: "rgba(255,255,255,0.4)",
     letterSpacing: 4,
     textAlign: "center",
-    marginTop: 1,
     marginBottom: 35,
   },
   recipeCard: {
@@ -352,7 +350,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 18,
     marginBottom: 20,
-    borderColor: "rgba(150, 150, 150, 0.5)",
+    borderColor: "rgba(150,150,150,0.5)",
     borderWidth: 0.5,
   },
   resultImagePlaceholder: {
@@ -370,17 +368,43 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: 16,
     fontWeight: "600",
-    color: "rgba(255, 221, 0, 1)",
+    color: "rgba(255,221,0,1)",
     marginTop: 10,
     marginBottom: 5,
   },
-  ingredient: {
-    color: "#ccc",
-    marginLeft: 10,
-    marginBottom: 2,
+  ingredient: { color: "#ccc", marginLeft: 10, marginBottom: 2 },
+  instructionsContainer: { marginTop: 5 },
+  instruction: { color: "#ddd", marginBottom: 8 },
+  instructions: { marginTop: 5, color: "#ddd" }, // Kept for backward compatibility
+  continueButton: {
+    backgroundColor: "#181818",
+    borderRadius: 30,
+    paddingVertical: 20,
+    paddingHorizontal: 32,
+    alignItems: "center",
+    width: "100%",
+    borderWidth: 0.5,
+    borderColor: "rgba(255,255,255,0.3)",
+    marginTop: 20,
   },
-  instructions: {
-    marginTop: 5,
-    color: "#ddd",
+  continueButtonText: {
+    fontFamily: "ConfigSemiBold",
+    fontSize: 25,
+    color: "#fff",
   },
+  title: {
+    fontFamily: "ConfigSemiBold",
+    fontSize: 60,
+    color: "#fff",
+    marginBottom: 8,
+    letterSpacing: 5,
+  },
+  subtitle: {
+    fontFamily: "ConfigSemiBold",
+    fontSize: 24,
+    color: "rgba(255,255,255,0.7)",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  itemsContainer: { flex: 1, height: 0, marginBottom: 12 },
 });
