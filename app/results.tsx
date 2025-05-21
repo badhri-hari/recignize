@@ -245,7 +245,6 @@ Respond ONLY with a single JSON array of recipe objects. Do NOT include any othe
             <Animated.View
               style={[styles.skeletonCard, { opacity: pulseAnim }]}
             >
-              <View style={styles.skelImage} />
               <View style={styles.skelLineShort} />
               <View style={styles.skelLineLong} />
               <View style={styles.skelLineMedium} />
@@ -311,12 +310,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     margin: 20,
-  },
-  skelImage: {
-    height: 120,
-    borderRadius: 8,
-    backgroundColor: "#333",
-    marginBottom: 12,
   },
   skelLineShort: {
     height: 14,
