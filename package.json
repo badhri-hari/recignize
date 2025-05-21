@@ -6,7 +6,8 @@
   "scripts": {
     "dev-server": "nodemon server/app.js",
     "dev-client": "npx expo start",
-    "start": "concurrently \"npm run dev-server\" \"npm run dev-client\"",
+    "dev": "concurrently \"npm run dev-server\" \"npm run dev-client\"",
+    "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",

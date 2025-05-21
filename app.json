@@ -13,17 +13,17 @@
     "ios": {
       "supportsTablet": true,
       "splash": {
-        "backgroundColor": "##ffdd00"
+        "backgroundColor": "#ffdd00"
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "##ffdd00"
+        "backgroundColor": "#ffdd00"
       },
       "edgeToEdgeEnabled": true,
       "splash": {
-        "backgroundColor": "##ffdd00"
+        "backgroundColor": "#ffdd00"
       },
       "permissions": ["CAMERA"]
     },
