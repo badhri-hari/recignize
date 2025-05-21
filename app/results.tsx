@@ -273,7 +273,6 @@ Respond ONLY with a single JSON array of recipe objects. Do NOT include any othe
               key={i}
               style={[styles.recipeCard, { opacity: fadeAnim }]}
             >
-              <View style={styles.resultImagePlaceholder} />
               <Text style={styles.recipeTitle}>{r.title}</Text>
               {r.ingredients.length > 0 && (
                 <>
@@ -346,12 +345,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderColor: "rgba(150,150,150,0.5)",
     borderWidth: 0.5,
-  },
-  resultImagePlaceholder: {
-    height: 160,
-    backgroundColor: "#333",
-    borderRadius: 8,
-    marginBottom: 12,
   },
   recipeTitle: {
     fontSize: 20,
